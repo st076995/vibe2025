@@ -1,103 +1,219 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>To-Do List</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        #todoList {
-            border-collapse: collapse;
-            width: 70%;
-            margin: 0 auto;
-        }
-        #todoList th, #todoList td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        #todoList th {
-            background-color: #f0f0f0;
-        }
-        #todoList th:first-child, #todoList th:last-child {
-            width: 5%;
-        }
-        #todoList th:nth-child(2) {
-            width: 90%;
-        }
-        .add-form {
-            margin-top: 20px;
-            width: 70%;
-            margin: 20px auto;
-        }
-        .add-form input[type="text"] {
-            padding: 8px;
-            width: 70%;
-        }
-        .add-form button {
-            padding: 8px;
-            width: 20%;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>To-Do List</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    #todoList {
+      border-collapse: collapse;
+      width: 70%;
+      margin: 0 auto;
+    }
+    #todoList th, #todoList td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    #todoList th {
+      background-color: #f0f0f0;
+    }
+    #todoList th:first-child, #todoList th:last-child {
+      width: 5%;
+    }
+    #todoList th:nth-child(2) {
+      width: 90%;
+    }
+    .add-form {
+      margin-top: 20px;
+      width: 70%;
+      margin: 20px auto;
+    }
+    .add-form input[type="text"] {
+      padding: 8px;
+      width: 70%;
+    }
+    .add-form button {
+      padding: 8px;
+      width: 20%;
+    }
+    button {
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
 
 <h2 style="text-align: center;">To-Do List</h2>
 
 <table id="todoList">
-    <thead>
-        <tr>
-            <th>Number</th>
-            <th>Text</th>
-            <th>Action</th>
-        </tr>
-    </thead>
-    <tbody id="listBody">
-        {{rows}}
-    </tbody>
+  <thead>
+    <tr>
+      <th>Number</th>
+      <th>Text</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="listBody">
+    <!-- Items will be rendered here -->
+  </tbody>
 </table>
 
 <div class="add-form">
-    <input type="text" id="newItem" placeholder="Enter new item">
-    <button onclick="addItem()">Add</button>
+  <input type="text" id="newItem" placeholder="Enter new item" />
+  <button onclick="addItem()">Add</button>
 </div>
 
 <script>
-    let items = [];
-    let nextId = 1;
+  // This will hold the current list of items from the server
+  let items = [];
 
-    function renderList() {
-        const listBody = document.getElementById('listBody');
-        listBody.innerHTML = '';
+  // Fetch the current list from the server on page load
+  async function fetchItems() {
+    try {
+      const response = await fetch('/items');
+      if (!response.ok) throw new Error('Failed to fetch items');
+      items = await response.json();
+      // Add editing state flag
+      items = items.map(item => ({ ...item, isEditing: false }));
+      renderList();
+    } catch (error) {
+      alert('Error loading items: ' + error.message);
+    }
+  }
 
-        items.forEach((item, index) => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${index + 1}</td>
-                <td>${item.text}</td>
-                <td><button onclick="removeItem(${index})">Remove</button></td>
-            `;
-            listBody.appendChild(row);
-        });
+  // Render the to-do list table rows
+  function renderList() {
+    const listBody = document.getElementById('listBody');
+    listBody.innerHTML = '';
+
+    items.forEach((item, index) => {
+      const row = document.createElement('tr');
+
+      if (item.isEditing) {
+        row.innerHTML = `
+          <td>${index + 1}</td>
+          <td><input type="text" id="editInput${item.id}" value="${item.text}" /></td>
+          <td>
+            <button onclick="saveEdit(${index})">Save</button>
+            <button onclick="cancelEdit(${index})">Cancel</button>
+          </td>
+        `;
+      } else {
+        row.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${item.text}</td>
+          <td>
+            <button onclick="startEdit(${index})">Edit</button>
+            <button onclick="removeItem(${index})">Remove</button>
+          </td>
+        `;
+      }
+
+      listBody.appendChild(row);
+    });
+  }
+
+  // Add a new item (POST to backend)
+  async function addItem() {
+    const newItemInput = document.getElementById('newItem');
+    const newItemText = newItemInput.value.trim();
+
+    if (!newItemText) {
+      alert('Please enter a to-do item.');
+      return;
     }
 
-    function addItem() {
-        const newItemInput = document.getElementById('newItem');
-        const newItemText = newItemInput.value.trim();
+    try {
+      const response = await fetch('/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newItemText }),
+      });
 
-        if (newItemText) {
-            items.push({ id: nextId++, text: newItemText });
-            newItemInput.value = '';
-            renderList();
-        }
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        newItemInput.value = '';
+        await fetchItems();
+      } else {
+        alert('Failed to add item.');
+      }
+    } catch (error) {
+      alert('Error adding item: ' + error.message);
+    }
+  }
+
+  // Remove an item (DELETE request)
+  async function removeItem(index) {
+    const id = items[index].id;
+    try {
+      const response = await fetch('/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        await fetchItems();
+      } else {
+        alert('Failed to remove item.');
+      }
+    } catch (error) {
+      alert('Error removing item: ' + error.message);
+    }
+  }
+
+  // Start editing an item
+  function startEdit(index) {
+    items[index].isEditing = true;
+    renderList();
+  }
+
+  // Cancel editing
+  function cancelEdit(index) {
+    items[index].isEditing = false;
+    renderList();
+  }
+
+  // Save edited item (POST to backend)
+  async function saveEdit(index) {
+    const input = document.getElementById(`editInput${items[index].id}`);
+    const updatedText = input.value.trim();
+
+    if (!updatedText) {
+      alert('Text cannot be empty.');
+      return;
     }
 
-    function removeItem(index) {
-        items.splice(index, 1);
+    const id = items[index].id;
+
+    try {
+      const response = await fetch('/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, text: updatedText }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        items[index].text = updatedText;
+        items[index].isEditing = false;
         renderList();
+      } else {
+        alert('Failed to update item.');
+      }
+    } catch (error) {
+      alert('Error updating item: ' + error.message);
     }
+  }
+
+  // Initial fetch on page load
+  fetchItems();
 </script>
 
 </body>
