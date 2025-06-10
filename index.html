@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>To-Do List</title>
     <style>
         body {
@@ -60,44 +60,65 @@
 </table>
 
 <div class="add-form">
-    <input type="text" id="newItem" placeholder="Enter new item">
-    <button onclick="addItem()">Add</button>
+    <input type="text" id="newItem" placeholder="Enter new item" />
+    <button id="addBtn">Add</button>
 </div>
 
 <script>
-    let items = [];
-    let nextId = 1;
+    // Функция обновления списка из сервера
+    async function fetchList() {
+        try {
+            const response = await fetch('/list');
+            if (!response.ok) throw new Error('Failed to fetch list');
+            const items = await response.json();
+            renderList(items);
+        } catch (err) {
+            alert('Error loading list: ' + err.message);
+        }
+    }
 
-    function renderList() {
+    // Функция рендера списка в таблицу
+    function renderList(items) {
         const listBody = document.getElementById('listBody');
         listBody.innerHTML = '';
-
         items.forEach((item, index) => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${index + 1}</td>
                 <td>${item.text}</td>
-                <td><button onclick="removeItem(${index})">Remove</button></td>
+                <td><button class="remove-btn" data-id="${item.id}">Remove</button></td>
             `;
             listBody.appendChild(row);
         });
+
+        // Добавляем обработчики удаления (если нужно, можно реализовать)
+        // Для текущей задачи можно оставить пустым или реализовать позже
     }
 
-    function addItem() {
-        const newItemInput = document.getElementById('newItem');
-        const newItemText = newItemInput.value.trim();
+    // Отправка новой задачи на сервер
+    async function addItem() {
+        const input = document.getElementById('newItem');
+        const text = input.value.trim();
+        if (!text) return alert('Please enter a task');
 
-        if (newItemText) {
-            items.push({ id: nextId++, text: newItemText });
-            newItemInput.value = '';
-            renderList();
+        try {
+            const response = await fetch('/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            if (!response.ok) throw new Error('Failed to add item');
+            input.value = '';
+            await fetchList(); // обновляем список
+        } catch (err) {
+            alert('Error adding item: ' + err.message);
         }
     }
 
-    function removeItem(index) {
-        items.splice(index, 1);
-        renderList();
-    }
+    document.getElementById('addBtn').addEventListener('click', addItem);
+
+    // Загрузка списка при загрузке страницы
+    fetchList();
 </script>
 
 </body>
